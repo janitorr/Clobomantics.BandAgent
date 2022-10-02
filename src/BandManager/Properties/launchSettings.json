@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "BandManager": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "Development"
+      }
+    }
+  }
+}
