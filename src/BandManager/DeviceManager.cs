@@ -33,9 +33,27 @@ namespace BandManager
                 //var deviceId = Console.ReadLine();
                 //Lazy bastard                
                 var deviceId = "device-01";
+                
+                /* CLOUD TO DEVICE MESSAGE */
                 await SendCloudToDeviceMessage(serviceClient, deviceId);
+
+                /* DIRECT METHOD CALL */
+                await CallDirectMethod(serviceClient, deviceId);
+                
                 _logger.LogTrace("Message sent to device");
             }
+        }
+
+        private async Task CallDirectMethod(
+            ServiceClient serviceClient
+            , string deviceId)
+        {
+            var method = new CloudToDeviceMethod("ShowMessage");
+            method.SetPayloadJson("'Hello from C#'");
+
+            var response = await serviceClient.InvokeDeviceMethodAsync(deviceId, method);
+
+            _logger.LogInformation("Response status: {Status}, payload {PayLoad}", response.Status, response.GetPayloadAsJson());
         }
 
         private async Task ReceiveFeedback(ServiceClient serviceClient, CancellationToken cancellationToken)

@@ -32,6 +32,10 @@ namespace BandAgent
             await device.OpenAsync(token);
             _ = ReceiveEventsAsync(device, token);
 
+            // Showcase remote method invocation
+            await device.SetMethodDefaultHandlerAsync(OtherDeviceMethod, null, token);
+            await device.SetMethodHandlerAsync("ShowMessage", ShowMessage, null, token);
+
             _logger.LogInformation("Device Connected");
 
             await UpdateTwin(device);
@@ -87,6 +91,20 @@ namespace BandAgent
             }
 
         }
+
+        private Task<MethodResponse> OtherDeviceMethod(
+            MethodRequest methodRequest
+            , object userContext)
+        {
+            _logger.LogInformation("***Other Device Method Called***");
+            _logger.LogInformation("Method: {Name}", methodRequest.Name);
+            _logger.LogInformation("Payload: {Payload}", methodRequest.DataAsJson);
+
+            var responsePayload = Encoding.ASCII.GetBytes(@"{""response"": ""method is not available"" }");
+
+            return Task.FromResult(new MethodResponse(responsePayload, 404));
+        }
+
         private static async Task ReceiveEventsAsync(DeviceClient device, CancellationToken cancellationToken)
         {
             while (true)
@@ -110,6 +128,18 @@ namespace BandAgent
             twinPropertios["connectionStrength"] = "weak";
 
             await device.UpdateReportedPropertiesAsync(twinPropertios);
+        }
+
+        private Task<MethodResponse> ShowMessage(
+            MethodRequest methodRequest
+            , object userContext)
+        {
+            _logger.LogInformation("***MESSAGE RECEIVED***");
+            Console.WriteLine(methodRequest.DataAsJson);
+
+            var responsePayload = Encoding.ASCII.GetBytes(@"{""response"": ""Message Shown"" }");
+
+            return Task.FromResult(new MethodResponse(responsePayload, 200));
         }
     }
 }
