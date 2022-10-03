@@ -1,11 +1,8 @@
-﻿using Microsoft.Azure.Devices;
+﻿using System.Text;
+
+using Microsoft.Azure.Devices;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace BandManager
 {
@@ -33,13 +30,13 @@ namespace BandManager
                 //var deviceId = Console.ReadLine();
                 //Lazy bastard                
                 var deviceId = "device-01";
-                
+
                 /* CLOUD TO DEVICE MESSAGE */
                 await SendCloudToDeviceMessage(serviceClient, deviceId);
 
                 /* DIRECT METHOD CALL */
                 await CallDirectMethod(serviceClient, deviceId);
-                
+
                 _logger.LogTrace("Message sent to device");
             }
         }

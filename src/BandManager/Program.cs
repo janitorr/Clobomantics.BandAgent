@@ -1,12 +1,6 @@
-﻿using Microsoft.Azure.Devices;
-using Microsoft.Extensions.Configuration;
+﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.VisualBasic;
-using System.Diagnostics;
-using System.Reflection.Metadata.Ecma335;
-using System.Runtime.InteropServices;
-using System.Text;
 
 namespace BandManager
 {

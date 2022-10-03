@@ -1,15 +1,12 @@
-﻿using Common;
+﻿using System.Text;
+using System.Text.Json;
+
+using Common;
+
 using Microsoft.Azure.Devices.Client;
 using Microsoft.Azure.Devices.Shared;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Runtime.InteropServices;
-using System.Text;
-using System.Text.Json;
-using System.Threading.Tasks;
 
 namespace BandAgent
 {
@@ -17,14 +14,14 @@ namespace BandAgent
     {
         private readonly ILogger<VirtualAgent> _logger;
         private readonly IOptions<EventHubOptions> _options;
-        private static DeviceClient _device;
-        public TwinCollection _reportedProperties;
+        private static DeviceClient s_device;
+        private TwinCollection _reportedProperties;
 
         public VirtualAgent(ILogger<VirtualAgent> logger, IOptions<EventHubOptions> options)
         {
             _logger = logger;
             _options = options;
-            _device = DeviceClient.CreateFromConnectionString(_options.Value.DeviceConnectionString);
+            s_device = DeviceClient.CreateFromConnectionString(_options.Value.DeviceConnectionString);
         }
 
         internal async Task StartAsync(CancellationToken token)
@@ -32,18 +29,18 @@ namespace BandAgent
             _logger.LogInformation("Initializing Agent");
             Console.WriteLine("Initializing Agent");
 
-            
-            await _device.OpenAsync(token);
-            _ = ReceiveEventsAsync(_device, token);
+
+            await s_device.OpenAsync(token);
+            _ = ReceiveEventsAsync(s_device, token);
 
             // Showcase remote method invocation
-            await _device.SetMethodDefaultHandlerAsync(OtherDeviceMethod, null, token);
-            await _device.SetMethodHandlerAsync("ShowMessage", ShowMessage, null, token);
+            await s_device.SetMethodDefaultHandlerAsync(OtherDeviceMethod, null, token);
+            await s_device.SetMethodHandlerAsync("ShowMessage", ShowMessage, null, token);
 
             _logger.LogInformation("Device Connected");
 
-            await UpdateTwin(_device);
-            await _device.SetDesiredPropertyUpdateCallbackAsync(UpdateProperties, null, token);
+            await UpdateTwin(s_device);
+            await s_device.SetDesiredPropertyUpdateCallbackAsync(UpdateProperties, null, token);
 
             Console.WriteLine("Press a key to perform an action:");
             Console.WriteLine("q: quits");
@@ -51,16 +48,16 @@ namespace BandAgent
             Console.WriteLine("u: send unhappy feedback");
             Console.WriteLine("e: request emergency help");
 
-            var random = new Random();
-            var quitRequested = false;
+            Random random = new();
+            bool quitRequested = false;
             while (!quitRequested)
             {
                 Console.WriteLine("Action? ");
-                var input = Console.ReadKey().KeyChar;
+                char input = Console.ReadKey().KeyChar;
                 Console.WriteLine();
-                var status = StatusType.NotSpesified;
-                var latitude = random.Next(0, 100);
-                var longitude = random.Next(0, 100);
+                StatusType status = StatusType.NotSpesified;
+                int latitude = random.Next(0, 100);
+                int longitude = random.Next(0, 100);
 
                 switch (input)
                 {
@@ -81,16 +78,16 @@ namespace BandAgent
                         status = StatusType.NotSpesified;
                         break;
                 }
-                var telemetry = new Telemetry
+                Telemetry telemetry = new()
                 {
                     Latitude = latitude,
                     Longitude = longitude,
                     Status = status,
                 };
 
-                var payload = JsonSerializer.Serialize(telemetry);
-                var message = new Message(Encoding.ASCII.GetBytes(payload));
-                await _device.SendEventAsync(message, token);
+                string payload = JsonSerializer.Serialize(telemetry);
+                Message message = new(Encoding.ASCII.GetBytes(payload));
+                await s_device.SendEventAsync(message, token);
 
                 _logger.LogInformation("Message sent!");
             }
@@ -99,8 +96,8 @@ namespace BandAgent
 
         private async Task UpdateProperties(TwinCollection desiredProperties, object userContext)
         {
-            var currentFirmwareVersion =  (string )_reportedProperties["firmwareVersion"];
-            var desiredFirmawareVersion = (string) desiredProperties["firmwareVersion"];
+            string currentFirmwareVersion = (string)_reportedProperties["firmwareVersion"];
+            string desiredFirmawareVersion = (string)desiredProperties["firmwareVersion"];
             if (currentFirmwareVersion != desiredFirmawareVersion)
             {
                 _logger.LogInformation("Firmware update requested. Current version {CurrentFirmwareVersion}" +
@@ -114,25 +111,25 @@ namespace BandAgent
             _logger.LogInformation("Beginning firmware update...");
             _reportedProperties["firmwareUpdateStatus"] =
                 $"Downloading zip file for the firmware {targetVersion}...";
-            await _device.UpdateReportedPropertiesAsync(_reportedProperties);
+            await s_device.UpdateReportedPropertiesAsync(_reportedProperties);
             Thread.Sleep(5000);
 
             _reportedProperties["firmwareUpdateStatus"] =
                 $"Unzipping the package...";
-            await _device.UpdateReportedPropertiesAsync(_reportedProperties);
+            await s_device.UpdateReportedPropertiesAsync(_reportedProperties);
             Thread.Sleep(5000);
 
             _logger.LogInformation("Beginning firmware update...");
             _reportedProperties["firmwareUpdateStatus"] =
                 $"Applying the update...";
-            await _device.UpdateReportedPropertiesAsync(_reportedProperties);
+            await s_device.UpdateReportedPropertiesAsync(_reportedProperties);
             Thread.Sleep(5000);
 
             _logger.LogInformation("Firmware update completed!");
 
             _reportedProperties["firmwareUpdateStatus"] = "n/a";
             _reportedProperties["firmwareVersion"] = targetVersion;
-            await _device.UpdateReportedPropertiesAsync(_reportedProperties);
+            await s_device.UpdateReportedPropertiesAsync(_reportedProperties);
 
 
         }
@@ -145,7 +142,7 @@ namespace BandAgent
             _logger.LogInformation("Method: {Name}", methodRequest.Name);
             _logger.LogInformation("Payload: {Payload}", methodRequest.DataAsJson);
 
-            var responsePayload = Encoding.ASCII.GetBytes(@"{""response"": ""method is not available"" }");
+            byte[] responsePayload = Encoding.ASCII.GetBytes(@"{""response"": ""method is not available"" }");
 
             return Task.FromResult(new MethodResponse(responsePayload, 404));
         }
@@ -154,13 +151,13 @@ namespace BandAgent
         {
             while (true)
             {
-                var message = await device.ReceiveAsync(cancellationToken);
+                Message message = await device.ReceiveAsync(cancellationToken);
                 if (message == null)
                 {
                     continue;
                 }
-                var messageBody = message.GetBytes();
-                var payload = Encoding.ASCII.GetString(messageBody);
+                byte[] messageBody = message.GetBytes();
+                string payload = Encoding.ASCII.GetString(messageBody);
                 Console.WriteLine($"Received message from cloud: '{payload}'");
                 await device.CompleteAsync(message, cancellationToken);
             }
@@ -182,7 +179,7 @@ namespace BandAgent
             _logger.LogInformation("***MESSAGE RECEIVED***");
             Console.WriteLine(methodRequest.DataAsJson);
 
-            var responsePayload = Encoding.ASCII.GetBytes(@"{""response"": ""Message Shown"" }");
+            byte[] responsePayload = Encoding.ASCII.GetBytes(@"{""response"": ""Message Shown"" }");
 
             return Task.FromResult(new MethodResponse(responsePayload, 200));
         }
