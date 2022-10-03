@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -16,29 +17,33 @@ namespace BandAgent
     {
         private readonly ILogger<VirtualAgent> _logger;
         private readonly IOptions<EventHubOptions> _options;
+        private static DeviceClient _device;
+        public TwinCollection _reportedProperties;
 
         public VirtualAgent(ILogger<VirtualAgent> logger, IOptions<EventHubOptions> options)
         {
             _logger = logger;
             _options = options;
+            _device = DeviceClient.CreateFromConnectionString(_options.Value.DeviceConnectionString);
         }
 
-        internal async Task ExecuteAsync(CancellationToken token)
+        internal async Task StartAsync(CancellationToken token)
         {
             _logger.LogInformation("Initializing Agent");
             Console.WriteLine("Initializing Agent");
 
-            var device = DeviceClient.CreateFromConnectionString(_options.Value.DeviceConnectionString);
-            await device.OpenAsync(token);
-            _ = ReceiveEventsAsync(device, token);
+            
+            await _device.OpenAsync(token);
+            _ = ReceiveEventsAsync(_device, token);
 
             // Showcase remote method invocation
-            await device.SetMethodDefaultHandlerAsync(OtherDeviceMethod, null, token);
-            await device.SetMethodHandlerAsync("ShowMessage", ShowMessage, null, token);
+            await _device.SetMethodDefaultHandlerAsync(OtherDeviceMethod, null, token);
+            await _device.SetMethodHandlerAsync("ShowMessage", ShowMessage, null, token);
 
             _logger.LogInformation("Device Connected");
 
-            await UpdateTwin(device);
+            await UpdateTwin(_device);
+            await _device.SetDesiredPropertyUpdateCallbackAsync(UpdateProperties, null, token);
 
             Console.WriteLine("Press a key to perform an action:");
             Console.WriteLine("q: quits");
@@ -76,7 +81,7 @@ namespace BandAgent
                         status = StatusType.NotSpesified;
                         break;
                 }
-                var telemetry = new Common.Telemetry
+                var telemetry = new Telemetry
                 {
                     Latitude = latitude,
                     Longitude = longitude,
@@ -85,10 +90,50 @@ namespace BandAgent
 
                 var payload = JsonSerializer.Serialize(telemetry);
                 var message = new Message(Encoding.ASCII.GetBytes(payload));
-                await device.SendEventAsync(message, token);
+                await _device.SendEventAsync(message, token);
 
                 _logger.LogInformation("Message sent!");
             }
+
+        }
+
+        private async Task UpdateProperties(TwinCollection desiredProperties, object userContext)
+        {
+            var currentFirmwareVersion =  (string )_reportedProperties["firmwareVersion"];
+            var desiredFirmawareVersion = (string) desiredProperties["firmwareVersion"];
+            if (currentFirmwareVersion != desiredFirmawareVersion)
+            {
+                _logger.LogInformation("Firmware update requested. Current version {CurrentFirmwareVersion}" +
+                                       "requested version: {DesiredFirmawareVersion}", currentFirmwareVersion, desiredFirmawareVersion);
+                await ApplyFirmwareUpdateAsync(desiredFirmawareVersion);
+            }
+        }
+
+        private async Task ApplyFirmwareUpdateAsync(string targetVersion)
+        {
+            _logger.LogInformation("Beginning firmware update...");
+            _reportedProperties["firmwareUpdateStatus"] =
+                $"Downloading zip file for the firmware {targetVersion}...";
+            await _device.UpdateReportedPropertiesAsync(_reportedProperties);
+            Thread.Sleep(5000);
+
+            _reportedProperties["firmwareUpdateStatus"] =
+                $"Unzipping the package...";
+            await _device.UpdateReportedPropertiesAsync(_reportedProperties);
+            Thread.Sleep(5000);
+
+            _logger.LogInformation("Beginning firmware update...");
+            _reportedProperties["firmwareUpdateStatus"] =
+                $"Applying the update...";
+            await _device.UpdateReportedPropertiesAsync(_reportedProperties);
+            Thread.Sleep(5000);
+
+            _logger.LogInformation("Firmware update completed!");
+
+            _reportedProperties["firmwareUpdateStatus"] = "n/a";
+            _reportedProperties["firmwareVersion"] = targetVersion;
+            await _device.UpdateReportedPropertiesAsync(_reportedProperties);
+
 
         }
 
@@ -121,13 +166,13 @@ namespace BandAgent
             }
         }
 
-        private static async Task UpdateTwin(DeviceClient device)
+        private async Task UpdateTwin(DeviceClient device)
         {
-            var twinPropertios = new TwinCollection();
-            twinPropertios["connectionType"] = "wi-fi";
-            twinPropertios["connectionStrength"] = "weak";
+            _reportedProperties = new TwinCollection();
+            _reportedProperties["firmwareVersion"] = "1.0";
+            _reportedProperties["firmwareUpdateStatus"] = "n/a";
 
-            await device.UpdateReportedPropertiesAsync(twinPropertios);
+            await device.UpdateReportedPropertiesAsync(_reportedProperties);
         }
 
         private Task<MethodResponse> ShowMessage(

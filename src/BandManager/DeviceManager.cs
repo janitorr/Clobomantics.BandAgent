@@ -20,7 +20,7 @@ namespace BandManager
             _options = options;
         }
 
-        internal async Task ExecuteAsync(CancellationToken token)
+        internal async Task StartAsync(CancellationToken token)
         {
             var serviceClient = ServiceClient.CreateFromConnectionString(_options.Value.ServiceKey);
 

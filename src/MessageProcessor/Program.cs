@@ -36,15 +36,11 @@ namespace MessageProcessor
                 e.Cancel = true;
             };
 
-            var main = app.Services.GetRequiredService<Processor>();
-            await main.ExecuteAsync(cts.Token);
+            var messageProcessor = app.Services.GetRequiredService<Processor>();
+            await messageProcessor.StartAsync(cts.Token);
 
             await app.WaitForShutdownAsync();
             
-        }
-
-        private class Goo
-        {
         }
     }
 }

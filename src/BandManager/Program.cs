@@ -35,8 +35,9 @@ namespace BandManager
                 e.Cancel = true;
             };
 
-            var main = app.Services.GetRequiredService<DeviceManager>();
-            await main.ExecuteAsync(cts.Token);
+            var deviceManager = app.Services.GetRequiredService<DeviceManager>();
+            await deviceManager.StartAsync(cts.Token);
+            await app.WaitForShutdownAsync(cts.Token);
         }
     }
 }

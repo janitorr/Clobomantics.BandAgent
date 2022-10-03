@@ -26,7 +26,7 @@ namespace MessageProcessor
             _options = options;
         }
 
-        internal async Task ExecuteAsync(CancellationToken cancellationToken)
+        internal async Task StartAsync(CancellationToken cancellationToken)
         {
             var consuremGroupName = EventHubConsumerClient.DefaultConsumerGroupName;
 

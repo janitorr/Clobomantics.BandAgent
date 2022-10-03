@@ -35,8 +35,8 @@ namespace Clobomantics.BandAgent
                 e.Cancel = true;
             };
 
-            var main = app.Services.GetRequiredService<VirtualAgent>();
-            await main.ExecuteAsync(cts.Token);
+            var virtualAgent = app.Services.GetRequiredService<VirtualAgent>();
+            await virtualAgent.StartAsync(cts.Token);
             await app.WaitForShutdownAsync(cts.Token);
         }
     }
