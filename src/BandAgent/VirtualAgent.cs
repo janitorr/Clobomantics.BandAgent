@@ -87,6 +87,7 @@ namespace BandAgent
 
                 string payload = JsonSerializer.Serialize(telemetry);
                 Message message = new(Encoding.ASCII.GetBytes(payload));
+                message.Properties["type"] = nameof(Telemetry);
                 await s_device.SendEventAsync(message, token);
 
                 _logger.LogInformation("Message sent!");

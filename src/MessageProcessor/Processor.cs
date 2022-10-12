@@ -4,6 +4,8 @@ using Azure.Storage.Blobs;
 
 using Common;
 
+using MediatR;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -13,12 +15,18 @@ namespace MessageProcessor
     {
         private readonly ILogger<Processor> _logger;
         private readonly IOptions<EventHubOptions> _options;
+        private readonly ISender _sender;
+        private readonly ITelemetryService _telemetryService;
 
         public Processor(ILogger<Processor> logger
-                        , IOptions<EventHubOptions> options)
+                        , IOptions<EventHubOptions> options
+                        , ISender sender
+                        , ITelemetryService telemetryService)
         {
             _logger = logger;
             _options = options;
+            _sender = sender;
+            _telemetryService = telemetryService;
         }
 
         internal async Task StartAsync(CancellationToken cancellationToken)
@@ -54,12 +62,14 @@ namespace MessageProcessor
         private Task Processor_ProcessEventAsync(Azure.Messaging.EventHubs.Processor.ProcessEventArgs arg)
         {
             Console.WriteLine($"processing from partition: {arg.Partition.PartitionId}");
+            _logger.LogInformation("Type of message was {Type}", arg.Data.Properties["type"]);
             Telemetry paylaod = arg.Data.EventBody.ToObjectFromJson<Telemetry>();
             object deviceId = arg.Data.SystemProperties["iothub-connection-device-id"];
             Console.WriteLine($"Message received on partition '{arg.Partition.PartitionId}'," +
                               $"device ID: {deviceId}," +
                               $"payload: {paylaod}");
-
+            _sender.Send(paylaod, arg.CancellationToken);
+            _telemetryService.Handle(paylaod, arg.CancellationToken);
             if (paylaod.Status == StatusType.Emergency)
             {
                 _logger.LogWarning("Alarm alarm!");

@@ -1,4 +1,8 @@
-﻿using Microsoft.Extensions.Configuration;
+﻿using System.Reflection;
+
+using MediatR;
+
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -13,8 +17,11 @@ namespace MessageProcessor
             {
                 IConfiguration configRoot = context.Configuration;
                 _ = services.AddSingleton<Processor>();
+                _ = services.AddMediatR(typeof(Program).GetTypeInfo().Assembly);
+                _ = services.AddTransient<ITelemetryService,TelemetryService>();
                 _ = services.Configure<EventHubOptions>(options =>
                     configRoot.GetSection(EventHubOptions.EventHub).Bind(options)
+
                 );
             });
 
